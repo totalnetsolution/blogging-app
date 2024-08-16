@@ -1,41 +1,51 @@
-import { db } from './firebase-config.js';
-import { collection, 
-getDocs, 
-query, 
-orderBy 
-} from "https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js";
+import { db, auth } from './firebase-config.js';
+import { collection, addDoc, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-auth.js";
 
-document.addEventListener('DOMContentLoaded', async () => {
-    const allBlogsContainer = document.getElementById('all-blogs');
-    allBlogsContainer.innerHTML = '';
+// Posting a new blog
+document.getElementById('blog-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('title').value;
+    const body = document.getElementById('body').value;
+    const user = auth.currentUser;
 
-    const blogsQuery = query(
-        collection(db, "blogs"),
-        orderBy("createdAt", "desc")
-    );
+    if (user) {
+        await addDoc(collection(db, 'blogs'), {
+            title: title,
+            body: body,
+            userId: user.uid,
+            userName: user.displayName,
+            createdAt: new Date()
+        });
+        window.location.reload();
+    }
+});
 
-    const querySnapshot = await getDocs(blogsQuery);
-    querySnapshot.forEach((doc) => {
-        const blog = doc.data();
-        const blogDiv = document.createElement('div');
-        blogDiv.classList.add('blog-post');
-        blogDiv.innerHTML = `
-        <h3>${blog.title}</h3>
-        <p>${blog.body}</p>
-        <small>By ${blog.authorName} on ${blog.createdAt.toDate().toLocaleString()}</small>
-        `;
-    allBlogsContainer.appendChild(blogDiv);
-    });
+// Display user's blogs
+const displayBlogs = async () => {
+    const user = auth.currentUser;
+    if (user) {
+        const blogsQuery = query(collection(db, 'blogs'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const querySnapshot = await getDocs(blogsQuery);
+        const blogsList = document.getElementById('blogs-list');
+        blogsList.innerHTML = '';
+        querySnapshot.forEach((doc) => {
+            const blog = doc.data();
+            blogsList.innerHTML += `
+                <div class="blog-post">
+                    <h4>${blog.title}</h4>
+                    <p>${blog.body}</p>
+                    <small>${blog.createdAt.toDate().toLocaleString()}</small>
+                </div>
+            `;
+        });
+    }
+};
 
-    // Set local time Greetings
-    const now = new Date();
-    const hours = now.getHours();
-    const greetingElement = document.getElementById('greeting');
-    if (hours < 12) {
-    greetingElement.textContent = "Good Morning";
-    } else if (hours < 18) {
-    greetingElement.textContent = "Good Afternoon";
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        displayBlogs();
     } else {
-    greetingElement.textContent = "Good Evening";
+        window.location.href = './index.html';
     }
 });
